@@ -1,0 +1,4 @@
+.env
+__pycache__/
+*.pyc
+companies_data.json

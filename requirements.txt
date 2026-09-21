@@ -1,0 +1,7 @@
+flask
+mysql-connector-python
+python-dotenv
+ddgs
+openai
+requests
+beautifulsoup4

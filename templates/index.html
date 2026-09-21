@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluminium Companies Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+     
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .search-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-bottom: 20px;
+            font-style: italic;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Aluminium Companies Explorer</h1>
+        <p>Enter a location to find and map aluminium profile companies.</p>
+    </div>
+
+    <div class="search-container">
+        <input type="text" id="location-input" placeholder="e.g. Istanbul, Turkey">
+        <button id="search-btn">Search</button>
+    </div>
+
+    <div id="loading">Scraping data and finding coordinates. This may take a few minutes...</div>
+
+    <div id="map"></div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+crossorigin=""></script>
+
+<script>
+    // Initialize map
+    const map = L.map('map').setView([0, 0], 2); // Default global view
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    let markers = [];
+
+    document.getElementById('search-btn').addEventListener('click', async () => {
+        const location = document.getElementById('location-input').value.trim();
+        if (!location) {
+            alert('Please enter a location');
+            return;
+        }
+
+        const btn = document.getElementById('search-btn');
+        const loading = document.getElementById('loading');
+        
+        btn.disabled = true;
+        loading.style.display = 'block';
+
+        // Clear existing markers
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+
+        try {
+            const response = await fetch(`/api/search?location=${encodeURIComponent(location)}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch data');
+            }
+
+            const companies = data.companies;
+            
+            if (companies.length === 0) {
+                alert('No companies found for this location.');
+                return;
+            }
+
+            const bounds = L.latLngBounds();
+            let hasValidCoords = false;
+
+            companies.forEach(comp => {
+                if (comp.latitude && comp.longitude) {
+                    const marker = L.marker([comp.latitude, comp.longitude]).addTo(map);
+                    
+                    let popupContent = `<b>${comp.name}</b><br>${comp.location}`;
+                    if (comp.main_categories && comp.main_categories.length > 0) {
+                        popupContent += `<br><b>Main:</b> ${comp.main_categories.join(', ')}`;
+                    }
+                    if (comp.sub_categories && comp.sub_categories.length > 0) {
+                        popupContent += `<br><b>Sub:</b> ${comp.sub_categories.join(', ')}`;
+                    }
+                    
+                    marker.bindPopup(popupContent);
+                    markers.push(marker);
+                    bounds.extend([comp.latitude, comp.longitude]);
+                    hasValidCoords = true;
+                }
+            });
+
+            if (hasValidCoords) {
+                map.fitBounds(bounds, { padding: [50, 50] });
+            } else {
+                alert('Companies were found, but no valid coordinates could be geocoded.');
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>
